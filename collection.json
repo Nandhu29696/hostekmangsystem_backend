@@ -1,0 +1,186 @@
+
+{
+  "info": {
+    "name": "Hostel Management API",
+    "description": "Admin & Warden APIs for Student, Room & Allocation Management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api/admin"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Students",
+      "item": [
+        {
+          "name": "Create Student (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/students/create",
+              "host": ["{{base_url}}"],
+              "path": ["students", "create"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student1@college.com\",\n  \"name\": \"Ravi Kumar\",\n  \"register_number\": \"REG2024001\",\n  \"mobile_number\": \"9876543210\",\n  \"course\": \"B.Tech\",\n  \"year\": 2,\n  \"parent_name\": \"Suresh\",\n  \"parent_mobile\": \"9123456789\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Resend Student Credentials",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/students/resend-credentials",
+              "host": ["{{base_url}}"],
+              "path": ["students", "resend-credentials"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student1@college.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Students Without Room",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/students/no-room",
+              "host": ["{{base_url}}"],
+              "path": ["students", "no-room"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "Create Room (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rooms/create/",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "create"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"block\": \"A\",\n  \"room_number\": \"101\",\n  \"capacity\": 2\n}"
+            }
+          }
+        },
+        {
+          "name": "Available Rooms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rooms/available",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "available"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Room Allocation",
+      "item": [
+        {
+          "name": "Allocate Room (Admin/Warden)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rooms/allocate",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "allocate"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": 1,\n  \"room_id\": 2\n}"
+            }
+          }
+        },
+        {
+          "name": "Vacate Room (Admin/Warden)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rooms/vacate/1",
+              "host": ["{{base_url}}"],
+              "path": ["rooms", "vacate", "1"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

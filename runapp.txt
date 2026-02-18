@@ -1,0 +1,32 @@
+ 
+#setup environment in local machine
+pip install virtualenvwrapper-win
+mkvirtualenv env
+ 
+#active & deactive env
+workon env
+deactivate
+
+#Install nessery tools
+pip freeze > requirements.txt
+ 
+pip install -r requirement.txt
+python manage.py runserver 0.0.0.0:8000
+
+#create database tables
+python manage.py makemigrations
+python manage.py migrate
+
+#create a new project
+python manage.py startapp accounts
+
+#create a super user
+python manage.py createsuperuser
+
+#deplyment to ec2 file
+cd branch-repo
+git pull origin branch-name
+source venv/bin/activate
+
+pm2 start python3 --name "django-server" -- manage.py runserver 0.0.0.0:8000
+ 
