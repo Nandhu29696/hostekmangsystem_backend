@@ -168,6 +168,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 PUBLIC_BASE_URL = "https://abc123.ngrok-free.app"  # dev
 MEDIA_BASE_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
+
 # scheduler configuration (requires django-crontab package)
 INSTALLED_APPS += [
     'django_crontab',

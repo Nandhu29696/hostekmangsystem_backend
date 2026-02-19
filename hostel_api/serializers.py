@@ -21,21 +21,9 @@ from rest_framework import serializers
 # shared utility -------------------------------------------------------------
 
 def send_whatsapp(to_mobile: str, body: str, media_url: str | None = None) -> str:
-    """Send a WhatsApp text (and optional media) via Twilio.
+    
+    
 
-    * ``to_mobile`` should be the 10‑digit Indian mobile number without prefix.
-    * ``body`` is the text content of the message.
-    * ``media_url`` if supplied will be attached as an image; the URL must be
-      accessible by Twilio's servers and return non‑zero bytes.
-
-    Returns the message SID from Twilio.  Any exception from the client is
-    propagated to the caller so it can handle/report failures.
-    """
-
-    account_sid = settings.TWILIO_ACCOUNT_SID
-    auth_token = settings.TWILIO_AUTH_TOKEN
-    from_whatsapp = getattr(settings, "TWILIO_WHATSAPP_FROM",
-                              f"whatsapp:{settings.TWILIO_PHONE_NUMBER_ID}")
     to_whatsapp = f"whatsapp:+91{to_mobile}"  # include country code
 
     client = Client(account_sid, auth_token)
@@ -176,13 +164,11 @@ class StudentCreateSerializer(serializers.Serializer):
 🎓 Course: {student.course}
 📅 Year: {student.year}
 
-📎 QR code attached below as an image
 """
             try:
                 sid = send_whatsapp(
                     validated_data["mobile_number"],
                     body,
-                    media_url=qr_image_url,
                 )
                 print(f"WhatsApp SID for new student: {sid}")
             except Exception as exc:
