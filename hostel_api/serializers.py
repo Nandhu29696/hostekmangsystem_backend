@@ -22,8 +22,6 @@ from rest_framework import serializers
 
 def send_whatsapp(to_mobile: str, body: str, media_url: str | None = None) -> str:
     
-    
-
     to_whatsapp = f"whatsapp:+91{to_mobile}"  # include country code
 
     client = Client(account_sid, auth_token)

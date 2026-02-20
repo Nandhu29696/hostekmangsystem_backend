@@ -38,7 +38,7 @@ from hostel_api.views import (
     ComplaintListView,
     ComplaintDetailView,
     UpdateComplaintStatusView,
-    DeleteComplaintView,
+    DeleteComplaintView,QRCodeAttendanceView
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -88,7 +88,8 @@ urlpatterns = [
     path("attendance", AttendanceRequest.as_view(), name="attendance"),
     path("attendance/students/<int:room_id>", StudentsByRoomAPIView.as_view(), name="attendance-students-by-room"),
     path("ad/attendance/students/<int:room_id>", AdminAttendanceByRoomView.as_view(), name="admin-attendance-by-room"),
-    
+    path("attendance/qr-scan/<int:student_id>", QRCodeAttendanceView.as_view(), name="qr-attendance"),  # capture attendance via QR code scan
+
     # Complaint Management URLs
     path("complaints/create", CreateComplaintView.as_view(), name="create-complaint"), # create a new complaint
     path("complaints/list", ComplaintListView.as_view(), name="complaint-list"), # list all complaints with filters

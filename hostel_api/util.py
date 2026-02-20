@@ -1,11 +1,11 @@
 
 # students/utils/qr_utils.py
 import uuid
+import qrcode
 from django.utils import timezone
 from hostel_api.models import StudentQR
 from django.utils.timezone import now
 from decimal import Decimal
-import qrcode
 from io import BytesIO
 from django.core.files.base import ContentFile
 from django.conf import settings

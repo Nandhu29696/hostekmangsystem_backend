@@ -3,6 +3,7 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from account.models import User
 from hostel_api.serializers import (
     StudentCreateSerializer,
     ResendStudentCredentialsSerializer,
@@ -38,6 +39,7 @@ from .pagination import StandardResultsSetPagination
 from datetime import timedelta
 from django.db.models import Prefetch
 from django.utils.dateparse import parse_date 
+from datetime import datetime
 
  
 class CreateStudentView(APIView):
@@ -58,8 +60,18 @@ class StudentQRImageAPI(APIView):
     def get(self, request, student_id):
         student = get_object_or_404(Student, id=student_id, is_active=True)
         qr = generate_or_refresh_qr(student)
-        qr_data = f"{settings.FRONTEND_URL}/qr/verify/{qr.token}"
-        img = qrcode.make(qr_data)
+        
+        # Generate QR with direct API endpoint URL (like Flask example)
+        # When QR is scanned, it will call the QR attendance endpoint
+        # Use API_BASE_URL from settings if available, otherwise build from request
+        if settings.API_BASE_URL:
+            base_url = settings.API_BASE_URL.rstrip('/')
+        else:
+            base_url = request.build_absolute_uri('/').rstrip('/')
+        print(f"Using base URL for QR: {base_url}")
+        qr_url = f"{base_url}/api/admin/attendance/qr-scan/{student.id}"
+        print(f"Generated QR URL: {qr_url}")
+        img = qrcode.make(qr_url)
         response = HttpResponse(content_type="image/png")
         response["Cache-Control"] = "no-store"  # prevent browser caching
         img.save(response, "PNG")
@@ -1383,19 +1395,6 @@ class ComplaintDetailView(APIView):
 
 
 class UpdateComplaintStatusView(APIView):
-    """
-    PUT /api/complaints/<complaint_id>/update-status
-    
-    Update the status of a complaint (Admin/Warden only)
-    
-    Request Body:
-    {
-        "status": "IN_PROGRESS",
-        "assigned_to": 2
-    }
-    
-    Permission: Admin, Warden only
-    """
     permission_classes = [IsAuthenticated, IsAdminOrWarden]
 
     def put(self, request, complaint_id):
@@ -1478,3 +1477,266 @@ class DeleteComplaintView(APIView):
             },
             status=status.HTTP_200_OK
         )
+    
+class QRCodeAttendanceView(APIView):
+    """
+    API endpoint to display student details when QR code is scanned.
+    Returns HTML page for browser/QR scanner apps, JSON for API clients.
+    """
+    authentication_classes = []  # Allow unauthenticated access for mobile QR scanners
+    permission_classes = []
+    
+    def get(self, request, student_id):
+        """Handle GET request when QR scanner redirects via GET"""
+        try:
+            student = Student.objects.select_related("user", "room").get(
+                id=student_id,
+                is_active=True
+            )
+            
+            # Check if request is from browser/QR scanner (Accept header)
+            accept_header = request.META.get('HTTP_ACCEPT', '')
+            is_browser = 'text/html' in accept_header or 'application/xhtml' in accept_header
+            
+            # Record attendance
+            today = datetime.now().date()
+            Attendance.objects.get_or_create(
+                student=student,
+                date=today,
+                defaults={"status": "present"}
+            )
+            
+            if is_browser:
+                # Return HTML for mobile QR scanner apps
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Attendance Captured</title>
+                    <style>
+                        body {{
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        }}
+                        .container {{
+                            background: white;
+                            padding: 40px;
+                            border-radius: 10px;
+                            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                            text-align: center;
+                            max-width: 500px;
+                        }}
+                        .success {{
+                            color: #28a745;
+                            font-size: 48px;
+                            margin-bottom: 20px;
+                        }}
+                        h1 {{
+                            color: #333;
+                            margin: 10px 0;
+                        }}
+                        .student-info {{
+                            background: #f8f9fa;
+                            padding: 20px;
+                            border-radius: 8px;
+                            margin: 20px 0;
+                            text-align: left;
+                        }}
+                        .info-row {{
+                            display: flex;
+                            justify-content: space-between;
+                            padding: 8px 0;
+                            border-bottom: 1px solid #dee2e6;
+                        }}
+                        .info-row:last-child {{
+                            border-bottom: none;
+                        }}
+                        .label {{
+                            font-weight: bold;
+                            color: #666;
+                        }}
+                        .value {{
+                            color: #333;
+                        }}
+                        .message {{
+                            color: #666;
+                            margin-top: 20px;
+                            font-size: 14px;
+                        }}
+                        .date {{
+                            font-weight: bold;
+                            color: #667eea;
+                            font-size: 16px;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="success">✅</div>
+                        <h1>Attendance Captured!</h1>
+                        <div class="student-info">
+                            <div class="info-row">
+                                <span class="label">Name:</span>
+                                <span class="value">{student.user.name}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Register Number:</span>
+                                <span class="value">{student.register_number}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Course:</span>
+                                <span class="value">{student.course}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Room:</span>
+                                <span class="value">{student.room.room_number if student.room else 'Not Assigned'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Date:</span>
+                                <span class="value">{today}</span>
+                            </div>
+                        </div>
+                        <div class="message">
+                            Your attendance has been captured for <span class="date">{today}</span>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+                return HttpResponse(html_content, content_type='text/html')
+            else:
+                # Return JSON for API clients
+                return Response({
+                    'status': 'success',
+                    'message': f'Attendance captured for {student.user.name}',
+                    'student': {
+                        'id': student.id,
+                        'name': student.user.name,
+                        'register_number': student.register_number,
+                        'course': student.course,
+                        'room': student.room.room_number if student.room else None,
+                        'status': 'Active' if student.is_active else 'Inactive',
+                    },
+                    'date': str(today)
+                }, status=status.HTTP_200_OK)
+            
+        except Student.DoesNotExist:
+            # Check if browser request
+            accept_header = request.META.get('HTTP_ACCEPT', '')
+            is_browser = 'text/html' in accept_header or 'application/xhtml' in accept_header
+            
+            if is_browser:
+                html_error = """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Invalid QR</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                        }
+                        .container {
+                            background: white;
+                            padding: 40px;
+                            border-radius: 10px;
+                            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                            text-align: center;
+                            max-width: 400px;
+                        }
+                        .error {
+                            font-size: 48px;
+                            margin-bottom: 20px;
+                        }
+                        h1 {
+                            color: #f5576c;
+                            margin: 10px 0;
+                        }
+                        p {
+                            color: #666;
+                            font-size: 16px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="error">❌</div>
+                        <h1>Invalid Student QR</h1>
+                        <p>Student not found or inactive</p>
+                    </div>
+                </body>
+                </html>
+                """
+                return HttpResponse(html_error, content_type='text/html', status=404)
+            else:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid Student QR ❌'
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            accept_header = request.META.get('HTTP_ACCEPT', '')
+            is_browser = 'text/html' in accept_header or 'application/xhtml' in accept_header
+            
+            if is_browser:
+                html_error = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Error</title>
+                    <style>
+                        body {{
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                        }}
+                        .container {{
+                            background: white;
+                            padding: 40px;
+                            border-radius: 10px;
+                            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                            text-align: center;
+                            max-width: 400px;
+                        }}
+                        h1 {{
+                            color: #f5576c;
+                        }}
+                        p {{
+                            color: #666;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Error</h1>
+                        <p>{str(e)}</p>
+                    </div>
+                </body>
+                </html>
+                """
+                return HttpResponse(html_error, content_type='text/html', status=500)
+            else:
+                return Response({
+                    'status': 'error',
+                    'message': f'Error: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
