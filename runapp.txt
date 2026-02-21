@@ -22,7 +22,7 @@ python manage.py startapp accounts
 
 #create a super user
 python manage.py createsuperuser
-
+ 
 #deplyment to ec2 file
 cd branch-repo
 git pull origin branch-name

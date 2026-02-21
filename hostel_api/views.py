@@ -52,10 +52,11 @@ class CreateStudentView(APIView):
         serializer = StudentCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"message": "Student created & WhatsApp sent"}, status=201)
+        return Response({"message": "Student created & SMS sent"}, status=201)
 
 class StudentQRImageAPI(APIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = []
 
     def get(self, request, student_id):
         student = get_object_or_404(Student, id=student_id, is_active=True)

@@ -164,14 +164,17 @@ CORS_ALLOWED_ORIGINS = [
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
-    "192.168.1.135",  # your PC IP
+    "192.168.1.173",  # your PC IP
 ]
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://192.168.1.135:8000")  # Backend API base URL for QR codes
+
+# API Configuration
+API_IP_ADDRESS = os.environ.get("API_IP_ADDRESS", "192.168.1.173")
+API_PORT = os.environ.get("API_PORT", "8000")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://192.168.1.173:3000")
+API_BASE_URL = os.environ.get("API_BASE_URL", f"http://{API_IP_ADDRESS}:{API_PORT}").strip()
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
-PUBLIC_BASE_URL = "https://abc123.ngrok-free.app"  # dev
-MEDIA_BASE_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://abc123.ngrok-free.app")
 
 
 # scheduler configuration (requires django-crontab package)
@@ -183,3 +186,6 @@ CRONJOBS = [
     # run assign_rooms command every hour on the hour
     ('0 * * * *', 'django.core.management.call_command', ['assign_rooms']),
 ]
+
+# Fast2SMS Configuration
+FAST2SMS_API_KEY = os.environ.get("FAST2SMS_API_KEY", "")

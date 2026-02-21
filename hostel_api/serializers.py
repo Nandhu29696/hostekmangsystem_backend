@@ -6,9 +6,8 @@ from account.models import Role, User
 from django.utils.timezone import now
 from django.db import IntegrityError, transaction
 from django.db.models import F
-from twilio.rest import Client
 from django.conf import settings
-import pywhatkit as kit
+import requests
 from django.http import JsonResponse
 from rest_framework import status
 import base64
@@ -16,27 +15,93 @@ from .util import generate_or_refresh_qr, generate_qr_image
 from django.utils import timezone
 from django.db import transaction
 from rest_framework import serializers
+from django.core.mail import send_mail
 
 
 # shared utility -------------------------------------------------------------
 
-def send_whatsapp(to_mobile: str, body: str, media_url: str | None = None) -> str:
+def send_sms(to_mobile: str, message: str) -> str:
     
-    to_whatsapp = f"whatsapp:+91{to_mobile}"  # include country code
-
-    client = Client(account_sid, auth_token)
-    params = {
-        "from_": from_whatsapp,
-        "body": body,
-        "to": to_whatsapp,
+    api_key = ""
+    if not api_key:
+        raise ValueError("FAST2SMS_API_KEY not configured in settings")
+    
+    url = "https://www.fast2sms.com/dev/bulkV2"
+    
+    payload = {
+        "sender_id": "FSTSMS",
+        "message": message,
+        "language": "english",
+        "route": "q",
+        "numbers": to_mobile
     }
-    if media_url:
-        params["media_url"] = [media_url]
 
-    msg = client.messages.create(**params)
-    print(f"WhatsApp message sent with SID: {msg.sid}")
-    return msg.sid
+    headers = {
+        "authorization": api_key,
+        "Content-Type": "application/json"
+    }
 
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        print(f"SMS sent to {to_mobile}: {result}")
+        return result.get('request_id', 'success')
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to send SMS: {str(e)}")
+        raise
+
+def send_email_notification(to_email: str, subject: str, message: str) -> bool:
+    """Send email notification to the provided email address.
+    
+    Returns True if successful, False otherwise.
+    """
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[to_email],
+            fail_silently=False,
+        )
+        print(f"Email sent to {to_email}: {subject}")
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {str(e)}")
+        raise
+
+def send_notification(to_email: str, to_mobile: str, subject: str, message: str) -> dict:
+    """Send both SMS and email notifications.
+    
+    Returns a dict with SMS and email status.
+    """
+    results = {
+        "sms": None,
+        "email": None,
+        "errors": []
+    }
+    
+    # # Send SMS
+    # try:
+    #     sms_result = send_sms(to_mobile, message)
+    #     results["sms"] = sms_result
+    #     print(f"SMS notification sent successfully")
+    # except Exception as e:
+    #     error_msg = f"SMS failed: {str(e)}"
+    #     results["errors"].append(error_msg)
+    #     print(error_msg)
+    
+    # Send Email
+    try:
+        email_result = send_email_notification(to_email, subject, message)
+        results["email"] = email_result
+        print(f"Email notification sent successfully")
+    except Exception as e:
+        error_msg = f"Email failed: {str(e)}"
+        results["errors"].append(error_msg)
+        print(error_msg)
+    
+    return results
 
 # room assignment helpers ----------------------------------------------------
 
@@ -61,7 +126,6 @@ def _find_candidate_room(student: Student):
             candidates = avail
 
     return candidates.order_by("occupied").first()
-
 
 def auto_assign_room(student: Student):
     """Try to allocate an available room for *student*.
@@ -96,8 +160,6 @@ def auto_assign_room(student: Student):
     student.save(update_fields=["hostel_block", "room_number", "room"])
 
     return allocation
-
-
 
 class StudentCreateSerializer(serializers.Serializer):
     name = serializers.CharField()
@@ -154,24 +216,28 @@ class StudentCreateSerializer(serializers.Serializer):
             # build QR and send using shared helper
             qr = generate_or_refresh_qr(student)
             qr_image_url = f"{settings.PUBLIC_BASE_URL}{qr.image.url}"
-            body = f"""
-🎓 *Student Admission Confirmed*
+            qr_scan_url = f"{settings.FRONTEND_URL}/scan/{qr.token}"
+            api_qr_url = f"{settings.API_BASE_URL}/api/admin/students/{student.id}/qr"
+            body = f"""🎓 Student Admission Confirmed
 
 👤 Name: {student.user.name}
 🆔 Register No: {student.register_number}
 🎓 Course: {student.course}
 📅 Year: {student.year}
-
-"""
+📱 Mobile: {student.mobile_number}
+🔗 Get QR Code API:
+<a href="{api_qr_url}">Click here</a>"""
             try:
-                sid = send_whatsapp(
-                    validated_data["mobile_number"],
-                    body,
+                notification_result = send_notification(
+                    to_email=validated_data["email"],
+                    to_mobile=validated_data["mobile_number"],
+                    subject="Student Admission Confirmed - Hostel Management",
+                    message=body,
                 )
-                print(f"WhatsApp SID for new student: {sid}")
+                print(f"Notifications sent for new student: {notification_result}")
             except Exception as exc:
                 raise serializers.ValidationError(
-                    f"Student created but failed to send WhatsApp: {exc}"
+                    f"Student created but failed to send notifications: {exc}"
                 )
 
             # automatically allocate a room if possible
@@ -244,14 +310,25 @@ class ResendStudentCredentialsSerializer(serializers.Serializer):
         user.set_password(new_password)
         user.save()
 
-        # Send WhatsApp message using shared helper
+        # Get QR code for student
+        api_qr_url = f"{settings.FRONTEND_URL}"
+
+        # Send SMS and email using shared helper
         body = (
-            f"📲 *Hostel login credentials*\n"
+            f"📲 Hostel login credentials\n"
             f"Email: {user.email}\n"
             f"Password: {new_password}\n"
-            f"(You can change it after first login)"
+            f"(You can change it after first login)\n\n"
+            f"📱 Scan QR Code:\n"
+            f"🔗 Get QR Code API:\n"
+            f"<a href=\"{api_qr_url}\">Click here</a>"
         )
-        send_whatsapp(student.mobile_number, body)
+        send_notification(
+            to_email=user.email,
+            to_mobile=student.mobile_number,
+            subject="Hostel Login Credentials - Hostel Management",
+            message=body
+        )
 
         return user
 
